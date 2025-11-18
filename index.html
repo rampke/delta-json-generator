@@ -148,9 +148,12 @@
                 .map(([k, v]) => `        "${k}": ${v}`)
                 .join(',\n');
             
+            const outputKeys = Object.keys(values);
+            const name = `Calculate ${outputKeys.join(', ')}`;
+            
             const json = {
                 type: "SCRIPT",
-                name: "Calculate Deltas",
+                name: name,
                 debugSettings: {
                     failuresEnabled: true,
                     allEnabled: false,
@@ -182,7 +185,15 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'calculate_deltas.json';
+            
+            const json = JSON.parse(currentOutput);
+            const outputKeys = Object.keys(json.configuration.arguments).map(key => {
+                if (key === 'fCnt') return 'floss';
+                return key.replace('_M_', '_C_').toLowerCase();
+            });
+            const filename = `cf-${outputKeys.join('-')}.json`;
+            
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
