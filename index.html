@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delta JSON Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #111827;
+            color: #f3f4f6;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 0.375rem;
+            color: #f3f4f6;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        button {
+            padding: 0.5rem 1.5rem;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-right: 0.5rem;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .output-container {
+            position: relative;
+            margin-top: 1rem;
+        }
+        .buttons {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+        .buttons button {
+            padding: 0.25rem 1rem;
+            background: #374151;
+            font-size: 0.875rem;
+        }
+        .buttons button:hover {
+            background: #4b5563;
+        }
+        pre {
+            background: #1f2937;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            border: 1px solid #374151;
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+        code {
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Delta JSON Generator</h1>
+        
+        <div>
+            <label for="inputs">Input Keys (comma separated)</label>
+            <input 
+                type="text" 
+                id="inputs" 
+                placeholder="G_M_Volume, W_M_Volume, fCnt"
+            >
+        </div>
+        
+        <button onclick="generate()">Generate</button>
+        
+        <div id="output" style="display: none;" class="output-container">
+            <div class="buttons">
+                <button onclick="copy()">Copy</button>
+                <button onclick="download()">Download</button>
+            </div>
+            <pre><code id="json-output"></code></pre>
+        </div>
+    </div>
+
+    <script>
+        let currentOutput = '';
+
+        function generate() {
+            const input = document.getElementById('inputs').value;
+            const keys = input.split(',').map(k => k.trim()).filter(k => k);
+            
+            if (keys.length === 0) return;
+            
+            const args = {};
+            const values = {};
+            
+            keys.forEach(key => {
+                args[key] = {
+                    refEntityKey: {
+                        key: key,
+                        type: "TS_ROLLING"
+                    },
+                    limit: 2,
+                    timeWindow: key === 'fCnt' ? 86400000 : 8640000000
+                };
+                
+                if (key === 'fCnt') {
+                    values.fLoss = `toFixed(${key}.last()-${key}.first()-1, 6)`;
+                } else {
+                    const outputKey = key.replace('_M_', '_C_');
+                    values[outputKey] = `toFixed(${key}.last()-${key}.first(), 6)`;
+                }
+            });
+            
+            const valuesStr = Object.entries(values)
+                .map(([k, v]) => `        "${k}": ${v}`)
+                .join(',\n');
+            
+            const json = {
+                type: "SCRIPT",
+                name: "Calculate Deltas",
+                debugSettings: {
+                    failuresEnabled: true,
+                    allEnabled: false,
+                    allEnabledUntil: 0
+                },
+                configurationVersion: 0,
+                configuration: {
+                    type: "SCRIPT",
+                    arguments: args,
+                    expression: `// Delta Calculations\n\nreturn {\n    "ts": ctx.latestTs,\n    "values": {\n${valuesStr}\n    }\n};`,
+                    output: {
+                        name: "",
+                        type: "TIME_SERIES"
+                    }
+                }
+            };
+            
+            currentOutput = JSON.stringify(json, null, 2);
+            document.getElementById('json-output').textContent = currentOutput;
+            document.getElementById('output').style.display = 'block';
+        }
+
+        function copy() {
+            navigator.clipboard.writeText(currentOutput);
+        }
+
+        function download() {
+            const blob = new Blob([currentOutput], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'calculate_deltas.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
