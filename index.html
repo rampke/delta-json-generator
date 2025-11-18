@@ -138,8 +138,11 @@
                 
                 if (key === 'fCnt') {
                     values.fLoss = `toFixed(${key}.last()-${key}.first()-1, 6)`;
-                } else {
+                } else if (key.includes('_M_')) {
                     const outputKey = key.replace('_M_', '_C_');
+                    values[outputKey] = `toFixed(${key}.last()-${key}.first(), 6)`;
+                } else {
+                    const outputKey = `calc_${key}`;
                     values[outputKey] = `toFixed(${key}.last()-${key}.first(), 6)`;
                 }
             });
